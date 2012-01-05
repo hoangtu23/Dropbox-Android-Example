@@ -1,7 +1,10 @@
 package net.asplode.dropboxtest;
 
 import android.app.Activity;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -29,11 +32,23 @@ public class Main extends Activity {
     final static String APP_SECRET = "YOUR SECRET KEY HERE";
     final static AccessType ACCESS_TYPE = AccessType.APP_FOLDER;
 
+    SharedPreferences prefs;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+        prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
+        String dropbox_key = prefs.getString("dropbox_key", "");
+        String dropbox_secret = prefs.getString("dropbox_secret", "");
+        if (dropbox_key.length() > 0 && dropbox_secret.length() > 0) {
+            AccessTokenPair access = new AccessTokenPair(dropbox_key, dropbox_secret);
+            AppKeyPair appKeys = new AppKeyPair(APP_KEY, APP_SECRET);
+            AndroidAuthSession session = new AndroidAuthSession(appKeys, ACCESS_TYPE);
+            mDBApi = new DropboxAPI<AndroidAuthSession>(session);
+            mDBApi.getSession().setAccessTokenPair(access);
+        }
         Button link = (Button) findViewById(R.id.button1);
         Button upload = (Button) findViewById(R.id.button2);
         Button download = (Button) findViewById(R.id.button3);
@@ -43,7 +58,9 @@ public class Main extends Activity {
             public void onClick(View v) {
                 AppKeyPair appKeys = new AppKeyPair(APP_KEY, APP_SECRET);
                 AndroidAuthSession session = new AndroidAuthSession(appKeys, ACCESS_TYPE);
-                mDBApi = new DropboxAPI<AndroidAuthSession>(session);
+                if (mDBApi == null) {
+                    mDBApi = new DropboxAPI<AndroidAuthSession>(session);
+                }
                 mDBApi.getSession().startAuthentication(Main.this);
             }
         });
@@ -93,7 +110,10 @@ public class Main extends Activity {
             try {
                 mDBApi.getSession().finishAuthentication();
                 AccessTokenPair tokens = mDBApi.getSession().getAccessTokenPair();
-                // Something something save tokens.
+                Editor editor = prefs.edit();
+                editor.putString("dropbox_key", tokens.key);
+                editor.putString("dropbox_secret", tokens.secret);
+                editor.commit();
             } catch (IllegalStateException e) {
                 Log.i("DbAuthLog", "Error authenticating", e);
             }
